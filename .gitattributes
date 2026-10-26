@@ -1,0 +1,13 @@
+# Normalize line endings across operating systems.
+* text=auto eol=lf
+
+# Executable scripts must stay LF or they break on macOS/Linux.
+*.sh text eol=lf
+bin/jimx-skills.js text eol=lf
+
+# Keep PowerShell as CRLF for native Windows tooling.
+*.ps1 text eol=crlf
+
+# Binary-ish files git should not touch.
+*.png binary
+*.ico binary

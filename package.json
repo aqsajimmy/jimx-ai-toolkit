@@ -1,0 +1,13 @@
+{
+  "name": "jimx-ai-toolkit",
+  "version": "0.1.0",
+  "private": false,
+  "description": "One-command shared AI agent skills stack for Claude Code, Codex and VS Code/Copilot.",
+  "bin": {
+    "jimx-skills": "./bin/jimx-skills.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}
