@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Node version gate
+        run: node -e "if (+process.versions.node.split('.')[0] < 22) { console.error('Node 22+ required'); process.exit(1) }"
+
+      - name: Syntax-check CLI
+        run: node -c bin/jimx-skills.js
+
+      - name: Run CLI help
+        run: node bin/jimx-skills.js help
+
+      - name: Parse-check install.sh
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash -n install.sh
+
+      - name: Parse-check install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/install.ps1", [ref]$null, [ref]$errors)
+          if ($errors) { $errors | ForEach-Object { $_.Message }; exit 1 }
+          Write-Host "install.ps1 parses OK"
+
+      - name: Verify LF line endings on shell/JS
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          fail=0
+          for f in install.sh bin/jimx-skills.js; do
+            if grep -qU $'\r' "$f"; then
+              echo "::error file=$f::CRLF found; must be LF"
+              fail=1
+            fi
+          done
+          exit $fail
