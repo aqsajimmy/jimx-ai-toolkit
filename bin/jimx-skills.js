@@ -29,6 +29,10 @@ function npxSkills(args, { fatal = true } = {}) {
   return code;
 }
 
+// Each target is [label, repo, skills] where skills is:
+//   "*"            install every skill in the repo
+//   "name"         install a single named skill
+//   ["a", "b"]     install several named skills from one repo
 const targets = [
   ["Anthropic frontend-design", "https://github.com/anthropics/skills", "frontend-design"],
   ["Taste Skill", "https://github.com/Leonxlnx/taste-skill", "design-taste-frontend"],
@@ -36,38 +40,78 @@ const targets = [
   ["Playwright", "https://github.com/microsoft/playwright-cli", "*"],
 ];
 
+// Mobile stack — opt-in via `jimx-skills mobile`. Covers native design rules
+// (framework-agnostic), React Native/Expo, and Flutter.
+const mobileTargets = [
+  ["Platform Design (Apple HIG + Material 3)", "https://github.com/ehmo/platform-design-skills",
+    ["ios-design-guidelines", "android-design-guidelines"]],
+  ["Vercel React Native", "https://github.com/vercel-labs/agent-skills",
+    ["vercel-react-native-skills"]],
+  ["Expo (React Native)", "https://github.com/expo/skills",
+    ["expo-design-system", "expo-native-ui", "expo-ui", "expo-router", "expo-animation"]],
+  ["Flutter", "https://github.com/zakariaf/Flutter-Skills",
+    ["adaptive-layout", "design-system-structure", "design-review-workflow",
+     "flutter-architecture", "flutter-performance", "accessibility-as-code"]],
+];
+
+// Install every target in `list`, best-effort. Returns the labels that failed.
+function installTargets(list) {
+  const failed = [];
+  for (const [label, repo, skills] of list) {
+    console.log(`\n=== ${label} ===`);
+    const names = skills === "*" ? [null] : [].concat(skills);
+    let ok = true;
+    for (const name of names) {
+      const args = ["add", repo, "-g", "--agent", "*", "-y"];
+      if (name) args.push("--skill", name);
+      // A single unreachable repo/skill should not abort the whole install.
+      if (npxSkills(args, { fatal: false }) !== 0) ok = false;
+    }
+    if (!ok) failed.push(label);
+  }
+  return failed;
+}
+
 function install() {
   console.log("JimX AI Toolkit — global install");
   console.log("Target: compatible agents discovered by the skills CLI.");
   console.log("This uses upstream skills; no third-party code is vendored.");
 
-  const failed = [];
-  for (const [label, repo, skill] of targets) {
-    console.log(`\n=== ${label} ===`);
-    const args = ["add", repo, "-g", "--agent", "*", "-y"];
-    if (skill !== "*") args.push("--skill", skill);
-    // Upstream skills are best-effort: a single unreachable repo should not
-    // abort the whole install. Collect failures and report them at the end.
-    if (npxSkills(args, { fatal: false }) !== 0) failed.push(label);
-  }
+  const failed = installTargets(targets);
 
   // The local JimX skill is the core deliverable — failing to install it is fatal.
-  installJimxSkill();
+  installLocalSkill("jimx-ui");
 
+  reportResult("JimX UI", failed, "install");
+}
+
+function mobile() {
+  console.log("JimX AI Toolkit — mobile stack (global)");
+  console.log("Native design rules (HIG + Material 3), React Native/Expo, and Flutter.");
+
+  const failed = installTargets(mobileTargets);
+
+  // Local JimX mobile anti-slop skill — core deliverable, fatal on failure.
+  installLocalSkill("jimx-mobile");
+
+  reportResult("JimX Mobile", failed, "mobile");
+}
+
+function reportResult(localLabel, failed, command) {
   if (failed.length) {
-    console.log(`\n⚠ JimX UI installed, but these upstream skills failed: ${failed.join(", ")}`);
-    console.log("  Re-run 'jimx-skills install' or check network/upstream availability.");
+    console.log(`\n⚠ ${localLabel} installed, but these upstream skills failed: ${failed.join(", ")}`);
+    console.log(`  Re-run 'jimx-skills ${command}' or check network/upstream availability.`);
   } else {
-    console.log("\n✓ JimX AI Toolkit installed.");
+    console.log(`\n✓ ${localLabel} stack installed.`);
   }
   console.log("Restart Claude Code / Codex / VS Code agent sessions.");
 }
 
-function installJimxSkill() {
-  // Install our own skill into the universal .agents location first.
+function installLocalSkill(name) {
+  // Install a local JimX skill into the universal .agents location.
   // VS Code and Codex discover this location; the skills CLI can also link
   // it into compatible agent directories.
-  const source = path.join(ROOT, "skills", "jimx-ui");
+  const source = path.join(ROOT, "skills", name);
   if (!fs.existsSync(source)) {
     console.error(`Missing local skill: ${source}`);
     process.exit(1);
@@ -85,9 +129,16 @@ function status() {
 }
 
 function project() {
-  const source = path.join(ROOT, "skills", "jimx-ui");
-  console.log("Installing JimX UI skill into the current project...");
-  npxSkills(["add", source, "--agent", "*", "-y", "--copy"]);
+  // --mobile adds the JimX mobile skill alongside (or instead of) jimx-ui.
+  const wantMobile = process.argv.includes("--mobile");
+  const wantWeb = !wantMobile || process.argv.includes("--web");
+  const locals = [...(wantWeb ? ["jimx-ui"] : []), ...(wantMobile ? ["jimx-mobile"] : [])];
+
+  for (const name of locals) {
+    const source = path.join(ROOT, "skills", name);
+    console.log(`Installing ${name} skill into the current project...`);
+    npxSkills(["add", source, "--agent", "*", "-y", "--copy"]);
+  }
 
   const template = path.join(ROOT, "templates", "DESIGN.md");
   const destination = path.join(process.cwd(), "DESIGN.md");
@@ -103,15 +154,15 @@ function project() {
 
 function removeJimx() {
   const home = os.homedir();
-  const dirs = [
-    path.join(home, ".agents", "skills", "jimx-ui"),
-    path.join(home, ".claude", "skills", "jimx-ui"),
-    path.join(home, ".copilot", "skills", "jimx-ui"),
-  ];
-  for (const dir of dirs) {
-    if (fs.existsSync(dir)) {
-      fs.rmSync(dir, { recursive: true, force: true });
-      console.log(`✓ Removed ${dir}`);
+  const bases = [".agents", ".claude", ".copilot"];
+  const names = ["jimx-ui", "jimx-mobile"];
+  for (const base of bases) {
+    for (const name of names) {
+      const dir = path.join(home, base, "skills", name);
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+        console.log(`✓ Removed ${dir}`);
+      }
     }
   }
 }
@@ -121,6 +172,10 @@ switch (command) {
   case "install":
   case "i":
     install();
+    break;
+  case "mobile":
+  case "m":
+    mobile();
     break;
   case "update":
   case "u":
@@ -142,11 +197,14 @@ switch (command) {
 JimX AI Toolkit
 
 Usage:
-  jimx-skills install       Install the complete global stack
-  jimx-skills update        Update global skills
-  jimx-skills status        Show installed global skills
-  jimx-skills project       Add JimX skill + DESIGN.md to current project
-  jimx-skills remove-jimx   Remove only JimX UI skill
+  jimx-skills install           Install the web/frontend global stack
+  jimx-skills mobile            Install the mobile global stack (HIG, Material 3,
+                                React Native/Expo, Flutter) + jimx-mobile
+  jimx-skills update            Update global skills
+  jimx-skills status            Show installed global skills
+  jimx-skills project           Add jimx-ui + DESIGN.md to current project
+  jimx-skills project --mobile  Add jimx-mobile (and --web to add both)
+  jimx-skills remove-jimx       Remove the local JimX skills (ui + mobile)
 
 One-shot:
   npx skills add <repo> -g --agent '*' -y

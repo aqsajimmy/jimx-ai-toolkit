@@ -11,6 +11,16 @@ One-command installer for a shared frontend/design skill stack across Claude Cod
 - JimX `jimx-ui` — local anti-AI-slop rules and project design workflow
 - Optional `DESIGN.md` project template
 
+### Mobile stack (opt-in: `jimx-skills mobile`)
+
+For native mobile apps — the web stack above is for browser UI only.
+
+- `ehmo/platform-design-skills` — Apple HIG (`ios-design-guidelines`) and Material 3 (`android-design-guidelines`); framework-agnostic, so they apply to native, React Native and Flutter alike
+- Vercel `vercel-react-native-skills` — React Native performance and patterns
+- Expo — `expo-design-system`, `expo-native-ui`, `expo-ui`, `expo-router`, `expo-animation`
+- `zakariaf/Flutter-Skills` — Flutter design and architecture (`adaptive-layout`, `design-system-structure`, `design-review-workflow`, `flutter-architecture`, `flutter-performance`, `accessibility-as-code`)
+- JimX `jimx-mobile` — local anti-slop rules for native-feeling iOS/Android/RN/Flutter UI
+
 The toolkit does **not** copy third-party skills into this repository. The installer pulls them from their upstream repositories using the official `npx skills` CLI, so updates remain manageable.
 
 ## Supported platforms
@@ -63,10 +73,16 @@ Or:
 
 ## Commands
 
-Global install:
+Global install (web/frontend stack):
 
 ```bash
 jimx-skills install
+```
+
+Mobile stack (native iOS/Android, React Native/Expo, Flutter):
+
+```bash
+jimx-skills mobile
 ```
 
 Update:
@@ -103,6 +119,12 @@ Current upstreams:
 - Taste Skill: https://github.com/Leonxlnx/taste-skill
 - Vercel Agent Skills: https://github.com/vercel-labs/agent-skills
 - Playwright: https://github.com/microsoft/playwright-cli
+
+Mobile:
+
+- Platform Design (HIG + Material 3): https://github.com/ehmo/platform-design-skills
+- Expo: https://github.com/expo/skills
+- Flutter Skills: https://github.com/zakariaf/Flutter-Skills
 
 ## Why this architecture?
 
